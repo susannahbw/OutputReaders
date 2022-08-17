@@ -135,6 +135,7 @@ class TddftOutputFile:
         self.input = None
         self.geometry = None
         self.basis = None
+        self.functional = None
         self.molecular_point_group = None
         self.n_alpha_elec = None
         self.n_beta_elec = None
@@ -174,6 +175,10 @@ class TddftOutputFile:
                     if 'RPA' in line:
                         rpa = True if 'true' in line else False
                         read_tda *= rpa
+
+                    if 'EXCHANGE' in line:
+                        cells = line.split()
+                        self.functional = cells[2]
 
             self.n_excited_states = n * nroots
 
