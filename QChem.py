@@ -1,6 +1,7 @@
 from MolecularPropertyObjects import ExcitedState
 from FileHandlingObjects import OpenFile
 
+
 class EomEeCcsdOutputFile:
 
     def __init__(self, filepath):
@@ -24,12 +25,7 @@ class EomEeCcsdOutputFile:
         with open(self.filepath) as fp:
             file = OpenFile(fp)
 
-            line = file.read_to_line_containing('Q-Chem begins on')
-            cells = line.split()
-            self.start_time = {'day': cells[5],
-                               'month': cells[4],
-                               'year': cells[7],
-                               'time': cells[6]}
+            read_start_time(file, self)
 
             file.read_to_line_containing('User input:')
             file.read_line()
@@ -55,18 +51,9 @@ class EomEeCcsdOutputFile:
                         state_sets.append(int(cells[-1]))
             self.n_excited_states = sum(state_sets)
 
-            cells = file.read_to_line_containing('Molecular Point Group').split()
-            self.molecular_point_group = cells[3]
-
-            cells = file.read_to_line_containing('beta electrons').split()
-            self.n_alpha_elec = int(cells[2])
-            self.n_beta_elec = int(cells[5])
-
-            line = file.read_to_line_containing('Requested basis set is')
-            cells = line.split()
-            self.basis = cells[4]
-            cells = file.read_line().split()
-            self.n_basis_functions = int(cells[5])
+            read_point_group(file, self)
+            read_n_electrons(file, self)
+            read_n_basis_functions(file, self)
 
             self.excited_states = []
             for n in range(len(state_sets)):
@@ -118,8 +105,9 @@ class EomEeCcsdOutputFile:
                             sym_mask = [(i == cells[4]) for i in from_sym]
                             ix_mask = [(i == int(cells[3])) for i in from_ix]
 
-                            state.from_states = [cells[0] + from_spin[i][0] if spin_mask[i] and sym_mask[i] and ix_mask[i]
-                                                 else state.from_states[i] for i in range(len(state.from_states))]
+                            state.from_states = [
+                                cells[0] + from_spin[i][0] if spin_mask[i] and sym_mask[i] and ix_mask[i]
+                                else state.from_states[i] for i in range(len(state.from_states))]
                         elif cells[1] == 'Vir':
                             spin_mask = [(i == cells[2]) for i in to_spin]
                             sym_mask = [(i == cells[4]) for i in to_sym]
@@ -133,14 +121,148 @@ class EomEeCcsdOutputFile:
 
                     self.excited_states.append(state)
 
-            cells = file.read_to_line_containing('Total job time:').split()
-            self.cpu_time = float(cells[4][:-6])
-            self.wall_time = float(cells[3][:-8])
-            cells = file.read_line().split()
-            self.end_time = {'day': cells[2],
-                             'month': cells[1],
-                             'year': cells[4],
-                             'time': cells[3]}
+            read_end_of_file(file, self)
 
-            file.read_to_line_containing('*  Thank you very much for using Q-Chem.  Have a nice day.  *')
-            file.f.close()
+
+class TddftOutputFile:
+
+    def __init__(self, filepath):
+        self.filepath = filepath
+        self.start_time = None
+        self.end_time = None
+        self.wall_time = None
+        self.cpu_time = None
+        self.input = None
+        self.geometry = None
+        self.basis = None
+        self.molecular_point_group = None
+        self.n_alpha_elec = None
+        self.n_beta_elec = None
+        self.n_basis_functions = None
+        self.n_excited_states = None
+        self.excited_states = None
+
+    def read_file(self, read_tda=False):
+
+        with open(self.filepath) as fp:
+            file = OpenFile(fp)
+
+            read_start_time(file, self)
+
+            file.read_to_line_containing('User input:')
+            file.read_line()
+
+            input_end = False
+            self.input = ''
+            n = 0
+            while not input_end:
+                line = file.read_line()
+                if '------------' in line:
+                    input_end = True
+                elif not line:
+                    break
+                else:
+                    self.input += line
+                    if 'CIS_N_ROOTS' in line:
+                        cells = line.split()
+                        nroots = int(cells[2])
+
+                    if 'CIS_SINGLETS' in line or 'CIS_TRIPLETS' in line:
+                        cells = line.split()
+                        n = n + 1 if cells[2] == 'true' else n
+
+                    if 'RPA' in line:
+                        rpa = True if 'true' in line else False
+                        read_tda *= rpa
+
+            self.n_excited_states = n * nroots
+
+            read_point_group(file, self)
+            read_n_electrons(file, self)
+            read_n_basis_functions(file, self)
+
+            if read_tda:
+                file.read_to_line_containing('TDDFT/TDA Excitation Energies')
+                shift = 0
+            else:
+                file.read_to_line_containing('TDDFT Excitation Energies')
+                shift = 1
+
+            self.excited_states = []
+            for m in range(self.n_excited_states):
+                state = ExcitedState()
+                cells = file.read_to_line_containing('Excited state').split()
+                state.excitation_energy_eV = float(cells[7])
+
+                cells = file.read_to_line_containing('Multiplicity').split()
+                state.spin = cells[1]
+
+                cells = file.read_to_line_containing('Trans. Mom').split()
+                state.trans_dip = [float(cells[i]) for i in [2, 4, 6]]
+
+                cells = file.read_to_line_containing('Strength').split()
+                state.osc_strength = float(cells[2])
+
+                orbs_read = False
+                state.coeffs = []
+                state.from_states = []
+                state.to_states = []
+                while not orbs_read:
+                    cells = file.read_line().split()
+                    if len(cells) == 0:
+                        orbs_read = True
+                    else:
+                        state.coeffs.append(float(cells[shift + 7]))
+                        state.from_states.append(int(cells[shift + 1][:-1]))
+                        state.to_states.append(int(cells[shift + 4][:-1]) + self.n_alpha_elec)
+
+                self.excited_states.append(state)
+
+            read_end_of_file(file, self)
+
+
+def read_start_time(file: OpenFile, results_object):
+    line = file.read_to_line_containing('Q-Chem begins on')
+    cells = line.split()
+    results_object.start_time = {'day': cells[5],
+                                 'month': cells[4],
+                                 'year': cells[7],
+                                 'time': cells[6]}
+    return
+
+
+def read_point_group(file: OpenFile, results_object):
+    cells = file.read_to_line_containing('Molecular Point Group').split()
+    results_object.molecular_point_group = cells[3]
+    return
+
+
+def read_n_electrons(file: OpenFile, results_object):
+    cells = file.read_to_line_containing('beta electrons').split()
+    results_object.n_alpha_elec = int(cells[2])
+    results_object.n_beta_elec = int(cells[5])
+    return
+
+
+def read_n_basis_functions(file: OpenFile, results_object):
+    line = file.read_to_line_containing('Requested basis set is')
+    cells = line.split()
+    results_object.basis = cells[4]
+    cells = file.read_line().split()
+    results_object.n_basis_functions = int(cells[5])
+    return
+
+
+def read_end_of_file(file: OpenFile, results_object):
+    cells = file.read_to_line_containing('Total job time:').split()
+    results_object.cpu_time = float(cells[4][:-6])
+    results_object.wall_time = float(cells[3][:-8])
+    cells = file.read_line().split()
+    results_object.end_time = {'day': cells[2],
+                               'month': cells[1],
+                               'year': cells[4],
+                               'time': cells[3]}
+
+    file.read_to_line_containing('*  Thank you very much for using Q-Chem.  Have a nice day.  *')
+    file.f.close()
+    return
