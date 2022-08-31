@@ -2,7 +2,7 @@ from MolecularPropertyObjects import ExcitedState
 from FileHandlingObjects import OpenFile
 
 
-class EomEeCcsdOutputFile:
+class EomEeCcOutputFile:
 
     def __init__(self, filepath):
         self.filepath = filepath
@@ -57,7 +57,7 @@ class EomEeCcsdOutputFile:
 
             self.excited_states = []
             for n in range(len(state_sets)):
-                cells = file.read_to_line_containing('Solving for EOMEE-CCSD').split()
+                cells = file.read_to_line_containing('Solving for EOMEE-CC').split()
                 symm = cells[3]
                 spin = cells[4]
 
@@ -171,10 +171,6 @@ class TddftOutputFile:
                     if 'CIS_SINGLETS' in line or 'CIS_TRIPLETS' in line:
                         cells = line.split()
                         n = n + 1 if cells[2] == 'true' else n
-
-                    if 'RPA' in line:
-                        rpa = True if 'true' in line else False
-                        read_tda *= rpa
 
                     if 'EXCHANGE' in line:
                         cells = line.split()
