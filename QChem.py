@@ -1,4 +1,5 @@
 from MolecularPropertyObjects import ExcitedState
+from MolecularPropertyObjects import AdcExcitedState
 from FileHandlingObjects import OpenFile
 
 
@@ -17,6 +18,7 @@ class EomEeCcOutputFile:
         self.n_alpha_elec = None
         self.n_beta_elec = None
         self.n_basis_functions = None
+        self.state_sets = None
         self.n_excited_states = None
         self.excited_states = None
 
@@ -25,43 +27,15 @@ class EomEeCcOutputFile:
         with open(self.filepath) as fp:
             file = OpenFile(fp)
 
-            read_start_time(file, self)
-
-            file.read_to_line_containing('User input:')
-            file.read_line()
-
-            input_end = False
-            self.input = ''
-            state_sets = []
-            while not input_end:
-                line = file.read_line()
-                if '------------' in line:
-                    input_end = True
-                elif not line:
-                    break
-                else:
-                    self.input += line
-                    if 'EE_SINGLETS' in line or 'EE_TRIPLETS' in line:
-                        cells = line.split()
-                        cells = cells[2:]
-                        cells[0] = cells[0][1:]
-                        cells[-1] = cells[-1][:-1]
-                        for cell in cells[:-1]:
-                            state_sets.append(int(cell[:-1]))
-                        state_sets.append(int(cells[-1]))
-            self.n_excited_states = sum(state_sets)
-
-            read_point_group(file, self)
-            read_n_electrons(file, self)
-            read_n_basis_functions(file, self)
+            read_ee_setup(file, self)
 
             self.excited_states = []
-            for n in range(len(state_sets)):
+            for n in range(len(self.state_sets)):
                 cells = file.read_to_line_containing('Solving for EOMEE-CC').split()
                 symm = cells[3]
                 spin = cells[4]
 
-                for m in range(state_sets[n]):
+                for m in range(self.state_sets[n]):
                     state = ExcitedState()
                     state.symmetry = symm
                     state.spin = spin
@@ -120,6 +94,77 @@ class EomEeCcOutputFile:
                             orbs_read = True
 
                     self.excited_states.append(state)
+
+            read_end_of_file(file, self)
+
+
+class AdcOutputFile:
+
+    def __init__(self, filepath):
+        self.filepath = filepath
+        self.start_time = None
+        self.end_time = None
+        self.wall_time = None
+        self.cpu_time = None
+        self.input = None
+        self.geometry = None
+        self.basis = None
+        self.molecular_point_group = None
+        self.n_alpha_elec = None
+        self.n_beta_elec = None
+        self.n_basis_functions = None
+        self.state_sets = None
+        self.n_excited_states = None
+        self.excited_states = None
+
+    def read_file(self):
+
+        with open(self.filepath) as fp:
+            file = OpenFile(fp)
+
+            read_ee_setup(file, self)
+            file.read_to_line_containing('Excited State Summary')
+
+            self.excited_states = []
+            for n in range(self.n_excited_states):
+                state = AdcExcitedState()
+                cells = file.read_to_line_containing('Excited state').split()
+                state.symmetry = cells[4][:-1]
+                state.spin = cells[3][1:-1]
+                state.converged = True if cells[-1] == '[converged]' else False
+
+                cells = file.read_to_line_containing('Total energy').split()
+                state.excited_state_energy_au = float(cells[2])
+
+                cells = file.read_to_line_containing('Excitation energy').split()
+                state.excitation_energy_eV = float(cells[2])
+
+                file.read_to_line_containing('Important amplitudes')
+                file.read_line()
+                file.read_line()
+                orbs_read = False
+                state.coeffs = []
+                from_ix = []
+                from_sym = []
+                from_spin = []
+                to_ix = []
+                to_sym = []
+                to_spin = []
+                while not orbs_read:
+                    line = file.read_line()
+                    if '----------' in line:
+                        orbs_read = True
+                    else:
+                        cells = line.split()
+                        state.coeffs.append(float(cells[6]))
+                        from_ix.append(int(cells[0]))
+                        from_sym.append(cells[1][1:-1])
+                        from_spin.append('Alpha' if (cells[2] == 'A') else 'Beta')
+                        to_ix.append(int(cells[3]))
+                        to_sym.append(cells[4][1:-1])
+                        to_spin.append('Alpha' if (cells[5] == 'A') else 'Beta')
+
+                self.excited_states.append(state)
 
             read_end_of_file(file, self)
 
@@ -266,4 +311,39 @@ def read_end_of_file(file: OpenFile, results_object):
 
     file.read_to_line_containing('*  Thank you very much for using Q-Chem.  Have a nice day.  *')
     file.f.close()
+    return
+
+
+def read_ee_setup(file: OpenFile, results_object):
+    read_start_time(file, results_object)
+
+    file.read_to_line_containing('User input:')
+    file.read_line()
+
+    input_end = False
+    results_object.input = ''
+    state_sets = []
+    while not input_end:
+        line = file.read_line()
+        if '------------' in line:
+            input_end = True
+        elif not line:
+            break
+        else:
+            results_object.input += line
+            if 'EE_SINGLETS' in line or 'EE_TRIPLETS' in line:
+                cells = line.split()
+                cells = cells[2:]
+                cells[0] = cells[0][1:]
+                cells[-1] = cells[-1][:-1]
+                for cell in cells[:-1]:
+                    state_sets.append(int(cell[:-1]))
+                state_sets.append(int(cells[-1]))
+    results_object.state_sets = state_sets
+    results_object.n_excited_states = sum(state_sets)
+
+    read_point_group(file, results_object)
+    read_n_electrons(file, results_object)
+    read_n_basis_functions(file, results_object)
+
     return
