@@ -1,6 +1,8 @@
 from MolecularPropertyObjects import ExcitedState
 from MolecularPropertyObjects import AdcExcitedState
 from FileHandlingObjects import OpenFile
+from MolecularPropertyObjects import VibMode
+import numpy as np
 
 
 class EomEeCcOutputFile:
@@ -265,6 +267,90 @@ class TddftOutputFile:
                 self.excited_states.append(state)
 
             read_end_of_file(file, self)
+
+
+class FreqOutputFile:
+
+    def __init__(self, filepath):
+        self.filepath = filepath
+        self.n_atoms = None
+        self.n_vib_dof = None
+        self.point_group = None
+        self.vib_modes = None
+
+    def read_vib_modes(self):
+        with open(self.filepath) as fp:
+            file = OpenFile(fp)
+
+            file.read_to_line_containing('JOBTYPE    freq')
+            file.read_to_line_containing('Standard Nuclear Orientation (Angstroms)')
+            file.read_to_line_containing('---------------')
+            end_of_geom = False
+            n_atoms = 0
+            while not end_of_geom:
+                line = file.read_line()
+                if '---------------' in line:
+                    end_of_geom = True
+                else:
+                    n_atoms += 1
+            self.n_atoms = n_atoms
+
+            cells = file.read_to_line_containing('Molecular Point Group').split()
+            self.point_group = cells[3]
+
+            file.read_to_line_containing('VIBRATIONAL ANALYSIS')
+
+            n_modes_read = 0
+            n_dof = self.n_atoms * 3
+            self.n_vib_dof = n_dof - 5 if 'inf' in self.point_group else n_dof - 6
+            self.vib_modes = []
+            while n_modes_read <= self.n_vib_dof:
+                line = file.read_to_line_containing('Mode')
+                if line == 'not found':
+                    break
+                else:
+                    cells = line.split()
+                    for i, idx in enumerate(cells[1:]):
+                        self.vib_modes.append(VibMode())
+                        mode_ix = n_modes_read + i
+                        assert int(idx) == mode_ix + 1, "Mode counting out of sync"
+                        self.vib_modes[mode_ix].index = int(idx)
+                        self.vib_modes[mode_ix].norm_coord_xyz = np.zeros((self.n_atoms, 3))
+
+                    for prop in ['freq_in_inv_cm', 'force_const_mDyne_per_A', 'red_mass_amu',
+                                 'IR_active', 'IR_intensity_KM_per_mole', 'Raman_active']:
+                        cells = file.read_line().split()
+                        offset = [i for i, j in enumerate(cells) if ':' in j][0] + 1
+                        for i, val in enumerate(cells[offset:]):
+                            mode_ix = n_modes_read + i
+                            assert self.vib_modes[mode_ix].index == mode_ix + 1, \
+                                f"Mode counting out of sync while reading {prop}"
+                            if prop in ['IR_active', 'Raman_active']:
+                                self.vib_modes[mode_ix].__setattr__(prop, val)
+                            else:
+                                self.vib_modes[mode_ix].__setattr__(prop, float(val))
+
+                    file.read_line()
+
+                    for n in range(self.n_atoms):
+                        cells = file.read_line().split()
+                        assert (len(cells) - 1) % 3 == 0, "Can't identify mode columns"
+                        modes_on_line = int((len(cells) - 1) / 3)
+                        for i in range(modes_on_line):
+                            mode_ix = n_modes_read + i
+                            assert self.vib_modes[mode_ix].index == mode_ix + 1, \
+                                f"Mode counting out of sync while reading coordinates"
+                            offset = i * 3 + 1
+                            self.vib_modes[mode_ix].norm_coord_xyz[n, :] = np.array([float(cells[offset]),
+                                                                                     float(cells[offset + 1]),
+                                                                                     float(cells[offset + 2])])
+
+                    n_modes_read = len(self.vib_modes)
+
+            for mode in self.vib_modes:
+                mode.disp_vec_r = np.linalg.norm(mode.norm_coord_xyz, axis=1)
+
+            file.f.close()
 
 
 def read_start_time(file: OpenFile, results_object):

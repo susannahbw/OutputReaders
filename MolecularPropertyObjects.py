@@ -35,6 +35,8 @@ class VibMode:
         self.freq_in_inv_cm = None
         self.red_mass_amu = None
         self.force_const_mDyne_per_A = None
+        self.IR_active = None
         self.IR_intensity_KM_per_mole = None
+        self.Raman_active = None
         self.norm_coord_xyz = None
         self.disp_vec_r = None
