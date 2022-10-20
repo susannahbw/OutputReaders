@@ -12,6 +12,16 @@ class ExcitedState:
         self.osc_strength = None
 
 
+class CasExcitedState:
+
+    def __init__(self):
+        self.excitation_energy_au = None
+        self.symmetry = None
+        self.spin = None
+        self.config = None
+        self.coeffs = None
+
+
 class AdcExcitedState:
 
     def __init__(self):
