@@ -15,11 +15,22 @@ class ExcitedState:
 class CasExcitedState:
 
     def __init__(self):
-        self.excitation_energy_au = None
+        self.excited_state_energy_au = None
         self.symmetry = None
         self.spin = None
         self.config = None
         self.coeffs = None
+
+class CasPlusExcitedState:
+
+    def __init__(self):
+        self.excited_state_energy_au = None
+        self.cas_excited_state_energy_au = None
+        self.symmetry = None
+        self.spin = None
+        self.config = None
+        self.coeffs = None
+        self.level_shift = None
 
 
 class AdcExcitedState:
