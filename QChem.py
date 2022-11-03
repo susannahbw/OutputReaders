@@ -33,6 +33,8 @@ class EomEeCcOutputFile:
 
             self.excited_states = []
             for n in range(len(self.state_sets)):
+                if self.state_sets[n] == 0:
+                    continue
                 cells = file.read_to_line_containing('Solving for EOMEE-CC').split()
                 symm = cells[3]
                 spin = cells[4]
