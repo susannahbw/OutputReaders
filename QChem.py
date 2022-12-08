@@ -185,6 +185,7 @@ class TddftOutputFile:
         self.geometry = None
         self.basis = None
         self.functional = None
+        self.spin_flip = None
         self.molecular_point_group = None
         self.n_alpha_elec = None
         self.n_beta_elec = None
@@ -203,6 +204,7 @@ class TddftOutputFile:
             file.read_line()
 
             input_end = False
+            self.spin_flip = False
             self.input = ''
             n = 0
             while not input_end:
@@ -225,18 +227,28 @@ class TddftOutputFile:
                         cells = line.split()
                         self.functional = cells[2]
 
+                    if 'SPIN_FLIP' in line:
+                        cells = line.split()
+                        self.spin_flip = True
+
+            if self.spin_flip:
+                n = 1
             self.n_excited_states = n * nroots
 
             read_point_group(file, self)
             read_n_electrons(file, self)
             read_n_basis_functions(file, self)
 
-            if read_tda:
-                file.read_to_line_containing('TDDFT/TDA Excitation Energies')
+            if self.spin_flip:
+                line = file.read_to_line_containing('SF-DFT Excitation Energies')
                 shift = 0
             else:
-                file.read_to_line_containing('TDDFT Excitation Energies')
-                shift = 1
+                if read_tda:
+                    file.read_to_line_containing('TDDFT/TDA Excitation Energies')
+                    shift = 0
+                else:
+                    file.read_to_line_containing('TDDFT Excitation Energies')
+                    shift = 1
 
             self.excited_states = []
             for m in range(self.n_excited_states):
@@ -244,14 +256,18 @@ class TddftOutputFile:
                 cells = file.read_to_line_containing('Excited state').split()
                 state.excitation_energy_eV = float(cells[7])
 
-                cells = file.read_to_line_containing('Multiplicity').split()
-                state.spin = cells[1]
+                if self.spin_flip:
+                    cells = file.read_to_line_containing('<S**2>').split()
+                    state.spin = float(cells[2])
+                else:
+                    cells = file.read_to_line_containing('Multiplicity').split()
+                    state.spin = cells[1]
 
-                cells = file.read_to_line_containing('Trans. Mom').split()
-                state.trans_dip = [float(cells[i]) for i in [2, 4, 6]]
+                    cells = file.read_to_line_containing('Trans. Mom').split()
+                    state.trans_dip = [float(cells[i]) for i in [2, 4, 6]]
 
-                cells = file.read_to_line_containing('Strength').split()
-                state.osc_strength = float(cells[2])
+                    cells = file.read_to_line_containing('Strength').split()
+                    state.osc_strength = float(cells[2])
 
                 orbs_read = False
                 state.coeffs = []
