@@ -1,3 +1,5 @@
+hartree_per_ev = 0.0367493
+
 class ExcitedState:
 
     def __init__(self):
