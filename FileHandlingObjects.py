@@ -7,6 +7,11 @@ class OpenFile:
 
     def read_to_line_containing(self, target_str):
         found = False
+
+        if self.current_line is not None:
+            if target_str in self.current_line:
+                return self.current_line
+
         while not found:
             self.count += 1
             self.current_line = self.f.readline()
