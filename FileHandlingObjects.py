@@ -5,12 +5,13 @@ class OpenFile:
         self.count = count
         self.current_line = None
 
-    def read_to_line_containing(self, target_str):
+    def read_to_line_containing(self, target_str, include_current_line=False):
         found = False
 
-        if self.current_line is not None:
-            if target_str in self.current_line:
-                return self.current_line
+        if include_current_line:
+            if self.current_line is not None:
+                if target_str in self.current_line:
+                    return self.current_line
 
         while not found:
             self.count += 1
