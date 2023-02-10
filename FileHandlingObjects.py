@@ -28,3 +28,8 @@ class OpenFile:
         self.count += 1
         self.current_line = self.f.readline()
         return self.current_line
+
+
+def find_next_nondigit_character(string):
+    ix = [i for i, j in enumerate(string) if not j.isdigit()]
+    return ix[0]

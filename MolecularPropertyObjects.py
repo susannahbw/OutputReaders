@@ -1,10 +1,12 @@
 hartree_per_ev = 0.0367493
 
+
 class ExcitedState:
 
     def __init__(self):
         self.excitation_energy_eV = None
         self.excitation_energy_au = None
+        self.excited_state_energy_au = None
         self.symmetry = None
         self.spin = None
         self.from_states = None
@@ -23,16 +25,20 @@ class CasExcitedState:
         self.config = None
         self.coeffs = None
 
-class CasPlusExcitedState:
+
+class CasPt2ExcitedState(CasExcitedState):
 
     def __init__(self):
-        self.excited_state_energy_au = None
-        self.cas_excited_state_energy_au = None
-        self.symmetry = None
-        self.spin = None
-        self.config = None
-        self.coeffs = None
+        super().__init__()
+        self.pt2_excited_state_energy_au = None
         self.level_shift = None
+
+
+class SsSrCasPt2ExcitedState(CasPt2ExcitedState):
+    def __init__(self):
+        super().__init__()
+        self.sspt2_excited_state_energy_au = None
+        self.sspt2_eigenvector = None
 
 
 class AdcExcitedState:

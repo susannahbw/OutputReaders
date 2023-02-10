@@ -325,7 +325,7 @@ def read_energies_and_characters(results_obj: GaussianOutputFile, file: OpenFile
     return
 
 
-def get_len_of_current_result_list(results_obj: GaussianOutputFile, result_label):
+def get_len_of_current_result_list(results_obj, result_label):
     if result_label not in results_obj.results:
         results_obj.results[result_label] = {}
         n = 0
